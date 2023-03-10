@@ -5,15 +5,47 @@ import ("fmt"
 		"os"
 		"bufio"
 		"net/url"
+		"sync"
+		"time"
 )
 
 var path *string
 var sliceUrls []string
+var wg sync.WaitGroup
 
 func checkNilErr(err error){
 	if err != nil{
 		panic(err)
 	}
+}
+
+func fetchUrl(target_url string){
+	
+	fmt.Println("Trying to fetch: ...", target_url)
+	time.Sleep(5 * time.Second)
+	fmt.Println("Fetched !")
+
+	wg.Done()
+}
+
+func slogger(){
+	
+	if _, err := os.Stat("output"); os.IsNotExist(err) {
+		if err := os.Mkdir("output", os.ModePerm); err != nil {
+			panic(err)
+		}
+	}
+
+	urlSz := len(sliceUrls)
+	//Set waitgroup size
+	wg.Add(urlSz)
+
+	for _, target_url := range sliceUrls {
+        go fetchUrl(target_url)
+    }
+
+	wg.Wait()
+
 }
 
 func init(){
@@ -52,4 +84,8 @@ func main(){
 		}
 	}
 	fmt.Println("Scanner end")
+
+	slogger()
+
+	fmt.Println("END")
 }
