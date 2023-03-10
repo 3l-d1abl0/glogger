@@ -6,10 +6,13 @@ import ("fmt"
 		"bufio"
 		"net/url"
 		"sync"
-		"time"
+		"path/filepath"
+		"path"
+		"net/http"
+		"io"
 )
 
-var path *string
+var pathToFile *string
 var sliceUrls []string
 var wg sync.WaitGroup
 
@@ -20,10 +23,34 @@ func checkNilErr(err error){
 }
 
 func fetchUrl(target_url string){
-	
-	fmt.Println("Trying to fetch: ...", target_url)
-	time.Sleep(5 * time.Second)
-	fmt.Println("Fetched !")
+
+	r, err := http.NewRequest("GET", target_url, nil)
+	if err != nil {
+		panic(err)
+	}
+
+	fileName := path.Base(r.URL.Path)
+
+	client := &http.Client{}
+	res, err := client.Do(r)
+	if err != nil {
+		panic(err)
+	}
+
+	defer res.Body.Close()
+
+	if res.StatusCode == http.StatusOK {
+
+		file, err := os.Create(filepath.Join("output", fileName))
+		if err != nil {
+			panic(err)
+		}
+
+		size, err := io.Copy(file, res.Body)
+    	defer file.Close()
+
+		fmt.Printf("Downloaded: %s , size %.2f MB\n", fileName, float32(size)/(1024*1024))
+	}
 
 	wg.Done()
 }
@@ -51,10 +78,10 @@ func slogger(){
 func init(){
 	fmt.Println("init")
 
-	path = flag.String("file", "", "file path to urls")
+	pathToFile = flag.String("file", "", "file path to urls")
 	flag.Parse()
 	
-	if *path == "" {
+	if *pathToFile == "" {
 		os.Exit(1)
 	}
 	
@@ -62,11 +89,11 @@ func init(){
 
 func main(){
 
-	fmt.Println("path to file ", *path)
+	fmt.Println("path to file ", *pathToFile)
 	fmt.Println("main")
 
 	//Read line by line
-	file, err := os.Open(*path)
+	file, err := os.Open(*pathToFile)
 	checkNilErr(err)
 
 	scanner := bufio.NewScanner(file)
