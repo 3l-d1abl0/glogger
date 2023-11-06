@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,6 +24,7 @@ var wg sync.WaitGroup
 var nOReq int
 var countReq int
 var mu sync.Mutex
+var previousMessageType int
 
 func checkNilErr(err error) {
 	if err != nil {
@@ -66,12 +68,12 @@ func fetchUrl(target_url string, doneCh chan<- string, msgCh chan<- string) {
 		size, err := io.Copy(file, res.Body)
 		defer file.Close()
 
-		doneCh <- fmt.Sprintf("Downloaded: %s [size %.2f MB]\n", fileName, float32(size)/(1024*1024))
+		doneCh <- fmt.Sprintf("Downloaded: %s [size %.2f MB]", fileName, float32(size)/(1024*1024))
 		//color.Green()
 
 	} else {
 		//fmt.Println(res)
-		msgCh <- fmt.Sprintf("%s [%s]\n", res.Status, fileName)
+		msgCh <- fmt.Sprintf("%s [%s]", res.Status, fileName)
 	}
 
 	//wg.Done()
@@ -109,14 +111,26 @@ func receiver(doneCh <-chan string, msgCh <-chan string, quitCh chan<- bool, bar
 	//Initialize the counter to Zero
 	countReq = 0
 
-	timeout := time.After(time.Second * 20)
+	timeout := time.After(time.Second * 90)
 
 	for {
 
 		select {
 
 		case msg := <-doneCh:
-			println(": " + msg)
+			/* If previous was from progressbar, override it
+			 */
+			boldGreen := color.New(color.FgGreen, color.Bold)
+
+			if previousMessageType == 2 {
+				boldGreen.Printf("\r:%-100s", msg)
+			} else {
+				boldGreen.Printf("\n\r:%-100s", msg)
+			}
+
+			//update the message Type
+			previousMessageType = 1
+
 			//Processed - increase the request counter
 			mu.Lock()
 			countReq = countReq + 1
@@ -124,7 +138,18 @@ func receiver(doneCh <-chan string, msgCh <-chan string, quitCh chan<- bool, bar
 			mu.Unlock()
 
 		case msg := <-msgCh:
-			println("::" + msg)
+
+			boldRed := color.New(color.FgRed, color.Bold)
+
+			if previousMessageType == 2 {
+				boldRed.Printf("\r::%s%s", msg, strings.Repeat("-", 50))
+			} else {
+				boldRed.Printf("\n\r::%s%s", msg, strings.Repeat("-", 50))
+			}
+
+			//update the message Type
+			previousMessageType = 1
+
 			//Processed - increase the request counter
 			mu.Lock()
 			countReq = countReq + 1
@@ -141,8 +166,15 @@ func receiver(doneCh <-chan string, msgCh <-chan string, quitCh chan<- bool, bar
 			mu.Lock()
 			currentCounter := countReq
 			mu.Unlock()
-			fmt.Println(currentCounter, nOReq)
+			//fmt.Println(currentCounter, nOReq)
 			//boldGreen := color.New(color.FgGreen, color.Bold)
+
+			if previousMessageType != 2 {
+				fmt.Println()
+			}
+			//update the message Type
+			previousMessageType = 2
+
 			bar.Display(int64(currentCounter))
 			/*if currentCounter < nOReq {
 				boldGreen.Printf(" %d/%d Completed ...\n", currentCounter, nOReq)
@@ -213,13 +245,15 @@ func main() {
 	var barSymbol string = "#"
 	bar := goProgressBar.GetNewBar(int64(N), 0, barSymbol, barSize)
 
-	slogger(doneCh, msgCh)
-	boldGreen := color.New(color.FgGreen, color.Bold)
-	boldGreen.Printf(" %d/%d Started ...\n", countReq, nOReq)
+	//boldGreen := color.New(color.FgGreen, color.Bold)
+	//boldGreen.Printf(" %d/%d Started ...\n", countReq, nOReq)
 
 	//Setting up the recievers
 	go receiver(doneCh, msgCh, quitCh, &bar)
 
-	println("Waiting")
+	//Start Downloading
+	slogger(doneCh, msgCh)
+
+	//Wait for the Quit Signal
 	println(<-quitCh)
 }
