@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/3l-d1abl0/goProgressBar"
 	"github.com/fatih/color"
 )
 
@@ -98,7 +99,7 @@ func slogger(doneCh chan<- string, msgCh chan<- string) {
 
 }
 
-func receiver(doneCh <-chan string, msgCh <-chan string, quitCh chan<- bool) {
+func receiver(doneCh <-chan string, msgCh <-chan string, quitCh chan<- bool, bar *goProgressBar.ProgressBar) {
 	/*	doneCh - bidirectional Channel
 		msgCh - receive from channel
 		quitCh <-send to channel
@@ -141,17 +142,21 @@ func receiver(doneCh <-chan string, msgCh <-chan string, quitCh chan<- bool) {
 			currentCounter := countReq
 			mu.Unlock()
 			fmt.Println(currentCounter, nOReq)
-			boldGreen := color.New(color.FgGreen, color.Bold)
-			if currentCounter < nOReq {
+			//boldGreen := color.New(color.FgGreen, color.Bold)
+			bar.Display(int64(currentCounter))
+			/*if currentCounter < nOReq {
 				boldGreen.Printf(" %d/%d Completed ...\n", currentCounter, nOReq)
 				currentCounter = countReq
 				time.Sleep(time.Second * 2)
-			} else if currentCounter == nOReq {
+			} else*/
+			if currentCounter == nOReq {
+				bar.End()
 				quitCh <- true
 				fmt.Println("Done Quitting")
 				return
 			}
 
+			time.Sleep(time.Second * 2)
 		}
 	}
 }
@@ -202,12 +207,18 @@ func main() {
 	//Bidirection Channel, used as send Quit message
 	quitCh := make(chan bool)
 
+	//Setting up Downloader Settings
+	var N int = len(sliceUrls)
+	var barSize int64 = 50
+	var barSymbol string = "#"
+	bar := goProgressBar.GetNewBar(int64(N), 0, barSymbol, barSize)
+
 	slogger(doneCh, msgCh)
 	boldGreen := color.New(color.FgGreen, color.Bold)
 	boldGreen.Printf(" %d/%d Started ...\n", countReq, nOReq)
 
 	//Setting up the recievers
-	go receiver(doneCh, msgCh, quitCh)
+	go receiver(doneCh, msgCh, quitCh, &bar)
 
 	println("Waiting")
 	println(<-quitCh)
