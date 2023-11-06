@@ -10,7 +10,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strconv"
 	"sync"
 	"time"
 
@@ -53,9 +52,9 @@ func fetchUrl(target_url string, doneCh chan<- string, msgCh chan<- string) {
 
 	if res.StatusCode == http.StatusOK {
 
-		downloadSize, _ := strconv.Atoi(res.Header.Get("Content-Length"))
+		//downloadSize, _ := strconv.Atoi(res.Header.Get("Content-Length"))
 		//fmt.Println("Size: ", int64(downloadSize)/(1024*1024))
-		color.Cyan("Size: %.2f MB (%s)", float64(downloadSize)/(1024*1024), target_url)
+		//color.Cyan("Size: %.2f MB (%s)", float64(downloadSize)/(1024*1024), target_url)
 
 		file, err := os.Create(filepath.Join("output", fileName))
 		if err != nil {
@@ -66,12 +65,12 @@ func fetchUrl(target_url string, doneCh chan<- string, msgCh chan<- string) {
 		size, err := io.Copy(file, res.Body)
 		defer file.Close()
 
-		doneCh <- fmt.Sprintf("Downloaded: %s , size %.2f MB\n", fileName, float32(size)/(1024*1024))
+		doneCh <- fmt.Sprintf("Downloaded: %s [size %.2f MB]\n", fileName, float32(size)/(1024*1024))
 		//color.Green()
 
 	} else {
-		fmt.Println(res)
-		msgCh <- res.Status
+		//fmt.Println(res)
+		msgCh <- fmt.Sprintf("%s [%s]\n", res.Status, fileName)
 	}
 
 	//wg.Done()
@@ -120,28 +119,16 @@ func receiver(doneCh <-chan string, msgCh <-chan string, quitCh chan<- bool) {
 			//Processed - increase the request counter
 			mu.Lock()
 			countReq = countReq + 1
-			currentCounter := countReq
 			//Mutex Unlock
 			mu.Unlock()
-			if currentCounter == nOReq {
-				quitCh <- true
-				fmt.Println("1Quitting")
-				return
-			}
 
 		case msg := <-msgCh:
 			println("::" + msg)
 			//Processed - increase the request counter
 			mu.Lock()
 			countReq = countReq + 1
-			currentCounter := countReq
 			//Mutex Unlock
 			mu.Unlock()
-			if currentCounter == nOReq {
-				quitCh <- true
-				fmt.Println("2Quitting")
-				return
-			}
 
 		case <-timeout:
 			println("Nothing received in 20 seconds. Exiting")
@@ -159,6 +146,10 @@ func receiver(doneCh <-chan string, msgCh <-chan string, quitCh chan<- bool) {
 				boldGreen.Printf(" %d/%d Completed ...\n", currentCounter, nOReq)
 				currentCounter = countReq
 				time.Sleep(time.Second * 2)
+			} else if currentCounter == nOReq {
+				quitCh <- true
+				fmt.Println("Done Quitting")
+				return
 			}
 
 		}
