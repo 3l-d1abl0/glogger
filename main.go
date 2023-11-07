@@ -10,7 +10,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -46,9 +45,8 @@ func fetchUrl(target_url string, doneCh chan<- string, msgCh chan<- string) {
 	client := &http.Client{}
 	res, err := client.Do(r)
 	if err != nil {
-		fmt.Println("ERR2")
-		msgCh <- "ERR2"
-		panic(err)
+		msgCh <- err.Error()
+		return
 	}
 
 	defer res.Body.Close()
@@ -111,7 +109,9 @@ func receiver(doneCh <-chan string, msgCh <-chan string, quitCh chan<- bool, bar
 	//Initialize the counter to Zero
 	countReq = 0
 
-	timeout := time.After(time.Second * 90)
+	//Default timeout of 5 Mins
+	defaultTimeoutSeconds := 300
+	timeout := time.After(time.Second * time.Duration(defaultTimeoutSeconds))
 
 	for {
 
@@ -123,9 +123,9 @@ func receiver(doneCh <-chan string, msgCh <-chan string, quitCh chan<- bool, bar
 			boldGreen := color.New(color.FgGreen, color.Bold)
 
 			if previousMessageType == 2 {
-				boldGreen.Printf("\r:%-100s", msg)
+				boldGreen.Printf("\r%-100s", msg)
 			} else {
-				boldGreen.Printf("\n\r:%-100s", msg)
+				boldGreen.Printf("\n\r%-100s", msg)
 			}
 
 			//update the message Type
@@ -142,9 +142,9 @@ func receiver(doneCh <-chan string, msgCh <-chan string, quitCh chan<- bool, bar
 			boldRed := color.New(color.FgRed, color.Bold)
 
 			if previousMessageType == 2 {
-				boldRed.Printf("\r::%s%s", msg, strings.Repeat("-", 50))
+				boldRed.Printf("\rERROR: %-100s", msg)
 			} else {
-				boldRed.Printf("\n\r::%s%s", msg, strings.Repeat("-", 50))
+				boldRed.Printf("\n\rERROR: %-100s", msg)
 			}
 
 			//update the message Type
@@ -157,7 +157,8 @@ func receiver(doneCh <-chan string, msgCh <-chan string, quitCh chan<- bool, bar
 			mu.Unlock()
 
 		case <-timeout:
-			println("Nothing received in 20 seconds. Exiting")
+			boldRed := color.New(color.FgRed, color.Bold)
+			boldRed.Printf("\n\rTimeout of %d seconds reached! Quitting", defaultTimeoutSeconds)
 			quitCh <- true
 			return
 
@@ -184,11 +185,11 @@ func receiver(doneCh <-chan string, msgCh <-chan string, quitCh chan<- bool, bar
 			if currentCounter == nOReq {
 				bar.End()
 				quitCh <- true
-				fmt.Println("Done Quitting")
+				fmt.Printf("\nDone Quitting!")
 				return
 			}
 
-			time.Sleep(time.Second * 2)
+			time.Sleep(time.Second * 1)
 		}
 	}
 }
@@ -241,7 +242,7 @@ func main() {
 
 	//Setting up Downloader Settings
 	var N int = len(sliceUrls)
-	var barSize int64 = 50
+	var barSize int64 = 70
 	var barSymbol string = "#"
 	bar := goProgressBar.GetNewBar(int64(N), 0, barSymbol, barSize)
 
@@ -249,10 +250,10 @@ func main() {
 	//boldGreen.Printf(" %d/%d Started ...\n", countReq, nOReq)
 
 	//Setting up the recievers
-	go receiver(doneCh, msgCh, quitCh, &bar)
-
 	//Start Downloading
 	slogger(doneCh, msgCh)
+
+	go receiver(doneCh, msgCh, quitCh, &bar)
 
 	//Wait for the Quit Signal
 	println(<-quitCh)
