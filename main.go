@@ -44,6 +44,7 @@ func fetchUrl(target_url string, doneCh chan<- string, msgCh chan<- string) {
 
 	client := &http.Client{}
 	res, err := client.Do(r)
+	//fmt.Println(res)
 	if err != nil {
 		msgCh <- err.Error()
 		return
@@ -110,7 +111,7 @@ func receiver(doneCh <-chan string, msgCh <-chan string, quitCh chan<- bool, bar
 	countReq = 0
 
 	//Default timeout of 5 Mins
-	defaultTimeoutSeconds := 300
+	defaultTimeoutSeconds := 600
 	timeout := time.After(time.Second * time.Duration(defaultTimeoutSeconds))
 
 	for {
