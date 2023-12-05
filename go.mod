@@ -1,4 +1,4 @@
-module github.com/3l-d1abl0/Lambda-examples
+module glogger
 
 go 1.19
 
