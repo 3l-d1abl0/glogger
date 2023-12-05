@@ -1,3 +1,9 @@
+github.com/3l-d1abl0/goProgressBar v1.0.0 h1:3CRRUlWvL/fUWi806rf4bus6gx1IFf0DnxczceziP8M=
+github.com/3l-d1abl0/goProgressBar v1.0.0/go.mod h1:b1boiIV3zvk68wtVRUAoxp/ZehN9Tgv6edMLrJ8DxGc=
+github.com/3l-d1abl0/goProgressBar v1.0.1 h1:x4Qix20xaKFe83CgrkjUAuOY50M0jseIzvMC1x4Kbh4=
+github.com/3l-d1abl0/goProgressBar v1.0.1/go.mod h1:b1boiIV3zvk68wtVRUAoxp/ZehN9Tgv6edMLrJ8DxGc=
+github.com/3l-d1abl0/goProgressBar v1.0.2 h1:A0lnZc4eaf15s7b24vUXnLZrgN/21mAGuxvPIYxu1a4=
+github.com/3l-d1abl0/goProgressBar v1.0.2/go.mod h1:b1boiIV3zvk68wtVRUAoxp/ZehN9Tgv6edMLrJ8DxGc=
 github.com/fatih/color v1.15.0 h1:kOqh6YHBtK8aywxGerMG2Eq3H6Qgoqeo13Bk2Mv/nBs=
 github.com/fatih/color v1.15.0/go.mod h1:0h5ZqXfHYED7Bhv2ZJamyIOUej9KtShiJESRwBDUSsw=
 github.com/mattn/go-colorable v0.1.13 h1:fFA4WZxdEF4tXPZVKMLwD8oUnCTTo08duU7wxecdEvA=
