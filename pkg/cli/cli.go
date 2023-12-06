@@ -66,3 +66,7 @@ func ParseCli() bool {
 	}
 	return true
 }
+
+func GetCli() *cobra.Command {
+	return rootCmd
+}
