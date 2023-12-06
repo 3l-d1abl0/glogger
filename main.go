@@ -8,6 +8,7 @@ import (
 	"glogger/pkg/readUrls"
 
 	"github.com/3l-d1abl0/goProgressBar"
+	"github.com/fatih/color"
 )
 
 func main() {
@@ -20,9 +21,20 @@ func main() {
 		return
 	}
 
+	cCy := color.New(color.FgCyan) //Normal
+	cGB := color.New(color.FgGreen).Add(color.BgBlack).Add(color.Bold).SprintFunc()
+	fmt.Printf("Path to the Urls file: %s\n", cGB(urlFilePath))
+	fmt.Printf("Path to the output folder: %s\n", cGB(outputFolder))
+
 	//2.Parse the urls from input file
 	var targetUrls commondata.TargetUrls
 	readUrls.ReadUrls(&urlFilePath, &targetUrls)
+
+	fmt.Printf("Total : %s url(s)  (%s valid + %s invalid url(s) )\n",
+		cGB(len(targetUrls.InvalidUrls)+len(targetUrls.ValidUrls)),
+		cCy.SprintFunc()(len(targetUrls.ValidUrls)),
+		cCy.SprintFunc()(len(targetUrls.InvalidUrls)),
+	)
 
 	//3. Setup channels
 	//Channel to transfer send messages

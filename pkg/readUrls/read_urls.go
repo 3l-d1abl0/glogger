@@ -2,6 +2,7 @@ package readUrls
 
 import (
 	"bufio"
+	"fmt"
 	"net/url"
 	"os"
 
@@ -27,6 +28,9 @@ type Urls struct {
 
 func ReadUrls(pathToFile *string, targetUrls *commondata.TargetUrls) {
 
+	//Cyan for normal print
+	cCy := color.New(color.FgCyan)
+
 	if targetUrls.ValidUrls == nil {
 		targetUrls.ValidUrls = make([]string, 0)
 	}
@@ -35,8 +39,7 @@ func ReadUrls(pathToFile *string, targetUrls *commondata.TargetUrls) {
 		targetUrls.InvalidUrls = make([]string, 0)
 	}
 
-	color.Cyan("Path to file: %s", *pathToFile)
-	color.Cyan("Parsing file ...")
+	cCy.Printf("Parsing file : %s\n", *pathToFile)
 
 	//Read line by line
 	file, err := os.Open(*pathToFile)
@@ -45,20 +48,17 @@ func ReadUrls(pathToFile *string, targetUrls *commondata.TargetUrls) {
 	scanner := bufio.NewScanner(file)
 	scanner.Split(bufio.ScanLines)
 
-	//var sliceUrls []string
-
-	boldYellow := color.New(color.FgYellow, color.Bold)
+	cYel := color.New(color.FgYellow, color.Bold)
 	for scanner.Scan() {
 
 		target_url := scanner.Text()
 		_, err := url.ParseRequestURI(target_url)
 		if err != nil {
-			boldYellow.Printf("Skipping: %s\n", target_url)
+
+			fmt.Printf("%s: %s\n", cCy.SprintFunc()("Skipping"), cYel.SprintFunc()(target_url))
 			targetUrls.InvalidUrls = append(targetUrls.InvalidUrls, target_url)
 		} else {
-			//color.Green("OK: %s", target_url)
 			targetUrls.ValidUrls = append(targetUrls.ValidUrls, target_url)
 		}
 	}
-	color.Cyan("Scanner ends !")
 }
