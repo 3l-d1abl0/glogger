@@ -62,7 +62,6 @@ func init() {
 
 func ParseCli() bool {
 	if err := rootCmd.Execute(); err != nil {
-		//fmt.Println("CLI: ", err)
 		return false
 	}
 	return true
