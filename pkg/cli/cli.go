@@ -26,7 +26,6 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 		File = filePath
-		fmt.Println(File)
 
 		output, err := cmd.Flags().GetString("output")
 		if err != nil {
