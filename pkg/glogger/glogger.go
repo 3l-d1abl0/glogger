@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,8 +15,8 @@ import (
 	"github.com/fatih/color"
 )
 
-var nOReq int
-var countReq int
+var totalReqs int
+var reqCount int
 var mu sync.Mutex
 var previousMessageType int
 
@@ -32,19 +33,16 @@ func fetchUrl(target_url string, doneCh chan<- string, msgCh chan<- string, outp
 
 	client := &http.Client{}
 	res, err := client.Do(r)
-	//fmt.Println(res)
+
 	if err != nil {
-		msgCh <- err.Error()
+		msgSplit := strings.Split(err.Error(), ": ")
+		msgCh <- fmt.Sprintf("%s [%s] [%s]", msgSplit[3], r.URL.Host, fileName)
 		return
 	}
 
 	defer res.Body.Close()
 
 	if res.StatusCode == http.StatusOK {
-
-		//downloadSize, _ := strconv.Atoi(res.Header.Get("Content-Length"))
-		//fmt.Println("Size: ", int64(downloadSize)/(1024*1024))
-		//color.Cyan("Size: %.2f MB (%s)", float64(downloadSize)/(1024*1024), target_url)
 
 		file, err := os.Create(filepath.Join(outputFolder, fileName))
 		if err != nil {
@@ -55,62 +53,60 @@ func fetchUrl(target_url string, doneCh chan<- string, msgCh chan<- string, outp
 		size, err := io.Copy(file, res.Body)
 		defer file.Close()
 
-		doneCh <- fmt.Sprintf("Downloaded: %s [size %.2f MB]", fileName, float32(size)/(1024*1024))
-		//color.Green()
+		doneCh <- fmt.Sprintf("Downloaded: [%s] [size %.2f MB]", fileName, float32(size)/(1024*1024))
 
 	} else {
-		//fmt.Println(res)
 		msgCh <- fmt.Sprintf("%s [%s]", res.Status, fileName)
 	}
 
-	//wg.Done()
 }
 
-func Glogger(doneCh chan<- string, msgCh chan<- string, validUrls []string, outputFolder string) {
+func Glogger(doneCh chan string, msgCh chan string, quitCh chan<- bool, validUrls []string, outputFolder string, bar *goProgressBar.ProgressBar) {
 
-	/*if _, err := os.Stat("output"); os.IsNotExist(err) {
-		if err := os.Mkdir("output", os.ModePerm); err != nil {
-			panic(err)
-		}
-	}*/
+	color.Cyan("Fetching valid urls ...")
 
-	//Set waitgroup size
-	//wg.Add(nOReq)
+	//Setting up the recievers
+	go receiver(doneCh, msgCh, quitCh, bar, len(validUrls))
 
-	color.Cyan("Fetching urls ...")
 	for _, target_url := range validUrls {
+
+		//Fetch the urls
 		go fetchUrl(target_url, doneCh, msgCh, outputFolder)
-		//go fetchUrl1(target_url, doneCh, msgCh)
-		//fmt.Println(target_url)
+
 	}
 
-	//wg.Wait()
-
 }
 
-func Receiver(doneCh <-chan string, msgCh <-chan string, quitCh chan<- bool, bar *goProgressBar.ProgressBar, ValidUrlCount int) {
+func receiver(doneCh <-chan string, msgCh <-chan string, quitCh chan<- bool, bar *goProgressBar.ProgressBar, ValidUrlCount int) {
 	/*	doneCh - bidirectional Channel
 		msgCh - receive from channel
 		quitCh <-send to channel
 	*/
 
-	nOReq = ValidUrlCount
 	//Initialize the counter to Zero
-	countReq = 0
+	reqCount = 0
+	//Total numbe rof request to be fulfilled
+	totalReqs = ValidUrlCount
 
-	//Default timeout of 5 Mins
+	//Default timeout of 5 Mins (Assuming network speed is enough to wrap it up in 5 mins)
 	defaultTimeoutSeconds := 600
 	timeout := time.After(time.Second * time.Duration(defaultTimeoutSeconds))
 
+	//Color Convention
+	boldGreen := color.New(color.FgGreen, color.Bold) //for done channel
+	boldRed := color.New(color.FgRed, color.Bold)     //for msg channel (unsuccessful msgs)
+	boldMag := color.New(color.FgMagenta, color.Bold) //for timeouts
+
+	//That wild infi Loop
 	for {
 
 		select {
 
+		//check the doneChannel, if any goroutine have finished
 		case msg := <-doneCh:
 			/* If previous was from progressbar, override it
-			 */
-			boldGreen := color.New(color.FgGreen, color.Bold)
-
+			pbar has message type 2, rest 1
+			*/
 			if previousMessageType == 2 {
 				boldGreen.Printf("\r%-100s", msg)
 			} else {
@@ -120,15 +116,13 @@ func Receiver(doneCh <-chan string, msgCh <-chan string, quitCh chan<- bool, bar
 			//update the message Type
 			previousMessageType = 1
 
-			//Processed - increase the request counter
-			mu.Lock()
-			countReq = countReq + 1
-			//Mutex Unlock
-			mu.Unlock()
+			//Processed a url - increase the request counter
+			mu.Lock() //Mutex Lock
+			reqCount = reqCount + 1
+			mu.Unlock() //Mutex Unlock
 
+		//check msgChannel for any message
 		case msg := <-msgCh:
-
-			boldRed := color.New(color.FgRed, color.Bold)
 
 			if previousMessageType == 2 {
 				boldRed.Printf("\rERROR: %-100s", msg)
@@ -141,40 +135,39 @@ func Receiver(doneCh <-chan string, msgCh <-chan string, quitCh chan<- bool, bar
 
 			//Processed - increase the request counter
 			mu.Lock()
-			countReq = countReq + 1
-			//Mutex Unlock
+			reqCount = reqCount + 1
 			mu.Unlock()
 
 		case <-timeout:
-			boldRed := color.New(color.FgRed, color.Bold)
-			boldRed.Printf("\n\rTimeout of %d seconds reached! Quitting", defaultTimeoutSeconds)
+			boldMag.Printf("\n\rTimeout of %d seconds reached! Quitting", defaultTimeoutSeconds)
+
+			//Signalling the quit Channel
 			quitCh <- true
 			return
 
 		default:
 
 			mu.Lock()
-			currentCounter := countReq
+			currentCounter := reqCount
 			mu.Unlock()
-			//fmt.Println(currentCounter, nOReq)
-			//boldGreen := color.New(color.FgGreen, color.Bold)
 
+			//The previous print message was from other channels
 			if previousMessageType != 2 {
 				fmt.Println()
 			}
 			//update the message Type
 			previousMessageType = 2
 
+			//Update the Progres bar
 			bar.Display(int64(currentCounter))
-			/*if currentCounter < nOReq {
-				boldGreen.Printf(" %d/%d Completed ...\n", currentCounter, nOReq)
-				currentCounter = countReq
-				time.Sleep(time.Second * 2)
-			} else*/
-			if currentCounter == nOReq {
+			if currentCounter == totalReqs {
+				//Progress bar Ends
 				bar.End()
+				//Signalling the quit Channel
 				quitCh <- true
-				fmt.Printf("\nDone Quitting!")
+
+				//boldGreen.Add(color.BgBlack)
+				boldGreen.Printf("\nProcessed : %d url(s)", totalReqs)
 				return
 			}
 

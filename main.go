@@ -39,7 +39,7 @@ func main() {
 	//3. Setup channels
 	//Channel to transfer send messages
 	doneCh := make(chan string)
-	//Channel to transfer other messages
+	//Channel to transfer any other messages
 	msgCh := make(chan string)
 	//Bidirection Channel, used as send Quit message
 	quitCh := make(chan bool)
@@ -50,16 +50,16 @@ func main() {
 	var barSymbol string = "#"
 	bar := goProgressBar.GetNewBar(int64(N), 0, barSymbol, barSize)
 
-	//boldGreen := color.New(color.FgGreen, color.Bold)
-	//boldGreen.Printf(" %d/%d Started ...\n", countReq, nOReq)
-
 	//5. Start Download Process
-	glogger.Glogger(doneCh, msgCh, targetUrls.ValidUrls, outputFolder)
+	glogger.Glogger(doneCh, msgCh, quitCh, targetUrls.ValidUrls, outputFolder, &bar)
 
 	//6. Setting up the recievers
-	go glogger.Receiver(doneCh, msgCh, quitCh, &bar, N)
+	//go glogger.Receiver(doneCh, msgCh, quitCh, &bar, N)
 
 	//Wait for the Quit Signal
-	println(<-quitCh)
+	if true == <-quitCh {
+		boldMag := color.New(color.FgMagenta).Add(color.Bold)
+		boldMag.Printf("\nExiting ! ")
+	}
 
 }
