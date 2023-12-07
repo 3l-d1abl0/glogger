@@ -20,28 +20,21 @@ func checkNilErr(err error) {
 	}
 }
 
-type Urls struct {
-	flag1      string
-	filePath   string
-	flag2      string
-	folderPath string
-	expected   *string
-	comments   string
-}
-
 // fetches the size of a url
 func getSize(url string) (int64, error) {
 
 	response, err := http.Head(url)
 	if err != nil {
-		fmt.Println(err)
 		return 0, err
 	}
 	defer response.Body.Close()
 
 	// Check if the response status code is in the 2xx range
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return 0, fmt.Errorf("HTTP request failed with status code %d", response.StatusCode)
+		//Head "https://static.git.ir/sub/cdn15.git.ir/02/Udemy%20Rust%20Programming%20The%20Complete%20Guide-git.ir/088-Channels-git.ir.fa.srt": dial tcp: lookup static.git.ir: no such host
+
+		urlSplit := strings.Split(url, "/")
+		return 0, fmt.Errorf("GET %s: dail tcp: %s: %d", url, urlSplit[2], response.StatusCode)
 	}
 
 	size := response.ContentLength
@@ -56,11 +49,11 @@ func ReadUrls(pathToFile *string, targetUrls *commondata.TargetUrls) (int64, err
 	cYel := color.New(color.FgYellow, color.Bold)
 
 	if targetUrls.ValidUrls == nil {
-		targetUrls.ValidUrls = make([]string, 0)
+		targetUrls.ValidUrls = make([]commondata.UrlObject, 0)
 	}
 
 	if targetUrls.InvalidUrls == nil {
-		targetUrls.InvalidUrls = make([]string, 0)
+		targetUrls.InvalidUrls = make([]commondata.UrlObject, 0)
 	}
 
 	cCy.Printf("Parsing file : %s\n", *pathToFile)
@@ -78,26 +71,51 @@ func ReadUrls(pathToFile *string, targetUrls *commondata.TargetUrls) (int64, err
 	for scanner.Scan() {
 
 		target_url := strings.TrimSpace(scanner.Text())
+		fileName := path.Base(target_url)
+
 		_, err := url.ParseRequestURI(target_url)
 		if err != nil {
 
 			fmt.Printf("%s: %s\n", cCy.SprintFunc()("Skipping"), cYel.SprintFunc()(target_url))
-			targetUrls.InvalidUrls = append(targetUrls.InvalidUrls, target_url)
-		} else {
-			targetUrls.ValidUrls = append(targetUrls.ValidUrls, target_url)
 
-			fileName := path.Base(target_url)
+			newUrlObject := commondata.UrlObject{
+				Url:      target_url,
+				Filename: fileName,
+				Size:     0,
+			}
+
+			targetUrls.InvalidUrls = append(targetUrls.InvalidUrls, newUrlObject)
+		} else {
+
 			// Fetch the size of the URL
 			size, err := getSize(target_url)
+
+			//new UrlObject
+			var newUrlObject commondata.UrlObject
 
 			//Update the total Size
 			totalSize += size
 			if err != nil {
-				cCy.Printf("INFO: [%s]", fileName)
+
+				msgSplit := strings.Split(err.Error(), ": ")
+				cCy.Printf("INFO: [%s] [%s] [%s]", msgSplit[2], fileName, msgSplit[3])
 				cRe.Printf(" [cannot fetch size]\n")
+
+				newUrlObject = commondata.UrlObject{
+					Url:      target_url,
+					Filename: fileName,
+					Size:     0,
+				}
 			} else {
 				cCy.Printf("INFO :[%s] [size %.2f MB]\n", fileName, float32(size)/(1024*1024))
+				newUrlObject = commondata.UrlObject{
+					Url:      target_url,
+					Filename: fileName,
+					Size:     size,
+				}
 			}
+
+			targetUrls.ValidUrls = append(targetUrls.ValidUrls, newUrlObject)
 		}
 	} //for scanner
 
