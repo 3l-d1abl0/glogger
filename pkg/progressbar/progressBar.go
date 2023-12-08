@@ -53,7 +53,7 @@ func (bar *ProgressBar) Display(currentStatus1 int64, currentStatus2 int64) {
 	currentBar := strings.Repeat(bar.char, int(bar.currentBarSize))
 
 	//Generate the Format String
-	fmtString := fmt.Sprintf("\r{%%s} [%%-%ds] %%3.2f%%%% [%%2.2fMB/%%2.2fMB] %%5d/%%d", bar.totalBarSize)
+	fmtString := fmt.Sprintf("\r{%%s} [%%-%ds] %%3.2f%%%%  %%5d/%%d [%%2.2f/%%2.2f MB]", bar.totalBarSize)
 	//fmtString := fmt.Sprintf("\r[%%-%ds] %%3.2f%%%% %%8d/%%d {%%s}", bar.totalBarSize)
 	bar.pulse = (bar.pulse + 1) % 4
 
@@ -61,7 +61,7 @@ func (bar *ProgressBar) Display(currentStatus1 int64, currentStatus2 int64) {
 	//[%-70s] %3.2f%% %2.2fMB/%2.2fMB %8d/%d {%s}
 	var currentVal float32 = float32(currentStatus2) / (1024 * 1024)
 	var totalVal float32 = float32(bar.status2.total) / (1024 * 1024)
-	fmt.Printf(fmtString, bar.spinner[bar.pulse], currentBar, bar.percentage, currentVal, totalVal, bar.status1.current, bar.status1.total)
+	fmt.Printf(fmtString, bar.spinner[bar.pulse], currentBar, bar.percentage, bar.status1.current, bar.status1.total, currentVal, totalVal)
 }
 
 func (bar *ProgressBar) End() {
