@@ -73,7 +73,8 @@ func ReadUrls(pathToFile *string, targetUrls *commondata.TargetUrls) (int64, err
 		target_url := strings.TrimSpace(scanner.Text())
 		fileName := path.Base(target_url)
 
-		_, err := url.ParseRequestURI(target_url)
+		parsedURL, err := url.ParseRequestURI(target_url)
+
 		if err != nil {
 
 			fmt.Printf("%s: %s\n", cCy.SprintFunc()("Skipping"), cYel.SprintFunc()(target_url))
@@ -87,6 +88,8 @@ func ReadUrls(pathToFile *string, targetUrls *commondata.TargetUrls) (int64, err
 			targetUrls.InvalidUrls = append(targetUrls.InvalidUrls, newUrlObject)
 		} else {
 
+			target_url = parsedURL.String()
+			fileName = path.Base(parsedURL.Path)
 			// Fetch the size of the URL
 			size, err := getSize(target_url)
 
@@ -98,7 +101,14 @@ func ReadUrls(pathToFile *string, targetUrls *commondata.TargetUrls) (int64, err
 			if err != nil {
 
 				msgSplit := strings.Split(err.Error(), ": ")
-				cCy.Printf("INFO: [%s] [%s] [%s]", msgSplit[2], fileName, msgSplit[3])
+
+				/*Timeouts have len less than 4
+				 */
+				if len(msgSplit) < 4 {
+					cCy.Printf("INFO: [%s] [%s] [%s]", msgSplit[1], fileName, msgSplit[2])
+				} else {
+					cCy.Printf("INFO: [%s] [%s] [%s]", msgSplit[2], fileName, msgSplit[3])
+				}
 				cRe.Printf(" [cannot fetch size]\n")
 
 				newUrlObject = commondata.UrlObject{

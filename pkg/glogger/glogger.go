@@ -39,7 +39,11 @@ func fetchUrl(idx int, urlObj commondata.UrlObject, doneCh chan<- commondata.Mes
 
 	if err != nil {
 		msgSplit := strings.Split(err.Error(), ": ")
-		msgCh <- fmt.Sprintf("%s [%s] [%s]", msgSplit[3], r.URL.Host, urlObj.Filename)
+		if len(msgSplit) < 4 {
+			msgCh <- fmt.Sprintf("%s [%s] [%s]", msgSplit[2], r.URL.Host, urlObj.Filename)
+		} else {
+			msgCh <- fmt.Sprintf("%s [%s] [%s]", msgSplit[3], r.URL.Host, urlObj.Filename)
+		}
 		return
 	}
 
@@ -124,9 +128,9 @@ func receiver(doneCh <-chan commondata.Message, msgCh <-chan string, quitCh chan
 
 			var printMsg string = fmt.Sprintf("Downloaded: [%s] [size %.2f MB]", fileName, float32(fileSize)/(1024*1024))
 			if previousMessageType == 2 {
-				boldGreen.Printf("\r%-125s", printMsg)
+				boldGreen.Printf("\r%-120s", printMsg)
 			} else {
-				boldGreen.Printf("\n\r%-125s", printMsg)
+				boldGreen.Printf("\n\r%-120s", printMsg)
 			}
 
 			//update the message Type
@@ -142,9 +146,9 @@ func receiver(doneCh <-chan commondata.Message, msgCh <-chan string, quitCh chan
 		case msg := <-msgCh:
 
 			if previousMessageType == 2 {
-				boldRed.Printf("\rERROR: %-125s", msg)
+				boldRed.Printf("\rERROR: %-120s", msg)
 			} else {
-				boldRed.Printf("\n\rERROR: %-125s", msg)
+				boldRed.Printf("\n\rERROR: %-120s", msg)
 			}
 
 			//update the message Type
