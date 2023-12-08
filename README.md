@@ -1,4 +1,4 @@
-![alt text](https://github.com/3l-d1abl0/glogger/blob/main/asset/Glogger.png?raw=true)
+![alt text](https://github.com/3l-d1abl0/glogger/blob/main/assets/Glogger.png?raw=true)
 
 ~ A simple multi-link concurrent Downloader Written in Go
 
