@@ -15,21 +15,63 @@ import (
 	"github.com/fatih/color"
 )
 
+
+type terminalMessage struct{
+	id int
+	message string
+}
+
 var totalReqs int
 var reqCount int
 var mu sync.Mutex
 var currentSize int64
 var previousMessageType int
 
-func fetchUrl(idx int, urlObj commondata.UrlObject, doneCh chan<- commondata.Message, msgCh chan<- string, outputFolder string) {
 
-	//fmt.Println("<< ", idx, urlObj.Filename, urlObj.Size)
+func flushToTerminal(msgs *[]terminalMessage){
+
+		//Color Convention
+		//1, boldGreen//for done channel
+		//2, boldRed //for msg channel (unsuccessful msgs)
+		//3, boldMag //for timeouts
+		//4, cyan - normal msgs
+
+	for _, str := range *msgs {
+
+		switch str.id{
+
+		case 1:
+			boldGreen := color.New(color.FgGreen, color.Bold)
+			boldGreen.Printf(str.message)
+
+		case 2:
+			boldRed := color.New(color.FgRed, color.Bold)
+			boldRed.Printf(str.message)
+
+		case 3:
+			boldMag := color.New(color.FgMagenta, color.Bold)
+			boldMag.Printf(str.message)
+
+		default:
+
+			normalCyan := color.New(color.FgCyan)
+			normalCyan.Printf(str.message)
+
+		}
+		
+	}
+
+	//Clear the buffer
+	*msgs = nil
+
+}
+
+func fetchUrl(idx int, urlObj commondata.UrlObject, speedCh chan<- int, doneCh chan<- commondata.Message, msgCh chan<- string, outputFolder string) {
 
 	r, err := http.NewRequest("GET", urlObj.Url, nil)
 	if err != nil {
-		fmt.Println("ERR1")
-		msgCh <- "ERR1"
-		panic(err)
+		msgCh <- fmt.Sprintf("Unable to make GET request: %s", urlObj.Url)
+		return
 	}
 
 	//fileName := path.Base(r.URL.Path)
@@ -56,15 +98,44 @@ func fetchUrl(idx int, urlObj commondata.UrlObject, doneCh chan<- commondata.Mes
 
 		file, err := os.Create(filepath.Join(outputFolder, urlObj.Filename))
 		if err != nil {
-			fmt.Println("ERR3")
-			panic(err)
+			msgCh <- fmt.Sprintf("Unbale to create file : %s/%s", outputFolder, urlObj.Filename)
+			return
 		}
 
-		size, err := io.Copy(file, res.Body)
+		//size, err := io.Copy(file, res.Body)
 		defer file.Close()
 
-		doneCh <- commondata.Message{Idx: idx, Size: size}
-		//doneCh <- fmt.Sprintf("Downloaded: [%s] [size %.2f MB]", fileName, float32(size)/(1024*1024))
+		var chunkSize int64 = 1024 * 1024 // 1 MB chunks
+		var totalSize int64
+		buffer := make([]byte, chunkSize)
+
+		for {
+			n, err := res.Body.Read(buffer)
+			if err != nil && err != io.EOF {
+				fmt.Println("\n Error reading response:", err)
+				msgCh <- fmt.Sprintf("Unable to make read response: %s", urlObj.Url)
+				return
+			}
+
+			if n == 0 {
+				//completed
+				break
+			}
+
+			n, writeErr := file.Write(buffer[:n])
+			if writeErr != nil {
+				fmt.Println("Error writing to file:", writeErr)
+				msgCh <- fmt.Sprintf("Unbale to create file : %s/%s [%s]", outputFolder, urlObj.Filename, writeErr)
+				return
+			}
+
+			//fmt.Printf("[%.3f MB]\n", float32(n)/(1024*1024))
+			totalSize += int64(n)
+			//fmt.Printf("Downloaded %d bytes [%.3f MB]\n", totalSize, float32(totalSize)/(1024*1024))
+			speedCh <- n
+		}
+
+		doneCh <- commondata.Message{Idx: idx, Size: totalSize}
 
 	} else {
 		msgCh <- fmt.Sprintf("%s [%s]", res.Status, urlObj.Filename)
@@ -74,23 +145,24 @@ func fetchUrl(idx int, urlObj commondata.UrlObject, doneCh chan<- commondata.Mes
 
 func Glogger(doneCh chan commondata.Message, msgCh chan string, quitCh chan<- bool, validUrls []commondata.UrlObject, outputFolder string, bar *progressbar.ProgressBar) {
 
+	speedCh := make(chan int, 50)
 	color.Cyan("Fetching valid urls ...")
 
 	//Setting up the recievers
-	go receiver(doneCh, msgCh, quitCh, bar, validUrls)
+	go receiver(doneCh, msgCh, quitCh, speedCh, bar, validUrls)
 
 	for idx, urlObj := range validUrls {
 
 		//fmt.Println(">> ", idx, urlObj.Filename, urlObj.Size)
 
 		//Fetch the urls
-		go fetchUrl(idx, urlObj, doneCh, msgCh, outputFolder)
+		go fetchUrl(idx, urlObj, speedCh, doneCh, msgCh, outputFolder)
 
 	}
 
 }
 
-func receiver(doneCh <-chan commondata.Message, msgCh <-chan string, quitCh chan<- bool, bar *progressbar.ProgressBar, validUrls []commondata.UrlObject) {
+func receiver(doneCh <-chan commondata.Message, msgCh <-chan string, quitCh chan<- bool, speedCh <-chan int, bar *progressbar.ProgressBar, validUrls []commondata.UrlObject) {
 	/*	doneCh - bidirectional Channel
 		msgCh - receive from channel
 		quitCh <-send to channel
@@ -101,99 +173,102 @@ func receiver(doneCh <-chan commondata.Message, msgCh <-chan string, quitCh chan
 	//Total numbe rof request to be fulfilled
 	totalReqs = len(validUrls)
 
+	//cumulative byte size
+	var totalBytes int
+
 	//Default timeout of 5 Mins (Assuming network speed is enough to wrap it up in 5 mins)
 	defaultTimeoutSeconds := 600
+
+	//TimeoutChannel
 	timeout := time.After(time.Second * time.Duration(defaultTimeoutSeconds))
 
-	//Color Convention
-	boldGreen := color.New(color.FgGreen, color.Bold) //for done channel
-	boldRed := color.New(color.FgRed, color.Bold)     //for msg channel (unsuccessful msgs)
-	boldMag := color.New(color.FgMagenta, color.Bold) //for timeouts
+	//Create a new ticker for 1 second
+	timer := time.NewTicker(1 * time.Second)
+	defer timer.Stop()
+
+	var tMessages []terminalMessage
+
+
 
 	//That wild infi Loop
 	for {
 
 		select {
 
+		//Save the size of bytes sent by reader Go routines
+		case bps := <-speedCh:
+			totalBytes += bps
+
 		//check the doneChannel, if any goroutine have finished
 		case msg := <-doneCh:
-			/* If previous was from progressbar, override it
-			pbar has message type 2, rest 1
-			*/
-
-			//fmt.Println(msg)
+			
+			//Fetch the filename and Size
 			validUrls[msg.Idx].Size = msg.Size
 			fileSize := validUrls[msg.Idx].Size
 			fileName := validUrls[msg.Idx].Filename
 
+			//Prepare Success Message
 			var printMsg string = fmt.Sprintf("Downloaded: [%s] [size %.2f MB]", fileName, float32(fileSize)/(1024*1024))
-			if previousMessageType == 2 {
-				boldGreen.Printf("\r%-120s", printMsg)
-			} else {
-				boldGreen.Printf("\n\r%-120s", printMsg)
-			}
-
-			//update the message Type
-			previousMessageType = 1
-
-			//Processed a url - increase the request counter and the downloaded Size
-			mu.Lock() //Mutex Lock
+			tMessages = append(tMessages, terminalMessage{
+				id: 1,
+				message: fmt.Sprintf("\r%-120s\n", printMsg),
+			})
+			
+			
 			reqCount = reqCount + 1
-			currentSize += fileSize
-			mu.Unlock() //Mutex Unlock
+			//currentSize += fileSize
 
 		//check msgChannel for any message
 		case msg := <-msgCh:
 
-			if previousMessageType == 2 {
-				boldRed.Printf("\rERROR: %-120s", msg)
-			} else {
-				boldRed.Printf("\n\rERROR: %-120s", msg)
-			}
+			tMessages = append(tMessages, terminalMessage{
+				id: 2,
+				message: fmt.Sprintf("\rERROR: %-120s\n", msg),
+			})
 
-			//update the message Type
-			previousMessageType = 1
-
-			//Processed - increase the request counter
-			mu.Lock()
 			reqCount = reqCount + 1
-			mu.Unlock()
+
 
 		case <-timeout:
-			boldMag.Printf("\n\rTimeout of %d seconds reached! Quitting", defaultTimeoutSeconds)
+
+			tMessages = append(tMessages, terminalMessage{
+				id: 3,
+				message: fmt.Sprintf("\rTimeout of %d seconds reached! Quitting\n", defaultTimeoutSeconds),
+			})
 
 			//Signalling the quit Channel
 			quitCh <- true
 			return
 
-		default:
+		//default:
+		case <-timer.C:
 
-			mu.Lock()
 			currentCounter := reqCount
-			cSize := currentSize
-			mu.Unlock()
+			//cSize := currentSize
+			currentSize += int64(totalBytes)
 
-			//The previous print message was from other channels
-			if previousMessageType != 2 {
-				fmt.Println()
-			}
-			//update the message Type
-			previousMessageType = 2
+			//Print Messages for Terminal
+			flushToTerminal(&tMessages)
 
 			//Update the Progres bar
-			bar.Display(int64(currentCounter), cSize)
+			bar.Display(int64(currentCounter), currentSize, totalBytes)
+
+			//reset the total bytes so far to zero
+			totalBytes = 0
+
 			if currentCounter == totalReqs {
 				//Progress bar Ends
 				bar.End()
 				//Signalling the quit Channel
 				quitCh <- true
 
-				//boldGreen.Add(color.BgBlack)
+				boldGreen := color.New(color.FgGreen, color.BgBlack,color.Bold)
 				boldGreen.Printf("\nProcessed : %d url(s)", totalReqs)
 				return
 			}
 
-			time.Sleep(time.Second * 1)
-		}
-	}
+			
+		} //select
+
+	} //for
 }

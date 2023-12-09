@@ -96,8 +96,8 @@ func main() {
 
 	//5. Set up Progressbar Downloader Settings
 	var N int = len(targetUrls.ValidUrls)
-	var barSize int64 = 70
-	var barSymbol string = "#"
+	var barSize int64 = 50
+	var barSymbol string = ">"
 	bar := progressbar.GetNewBar(int64(N), 0, barSymbol, barSize, 0, totalSize)
 
 	//6. Start Download Process
