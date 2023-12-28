@@ -177,7 +177,7 @@ func receiver(doneCh <-chan commondata.Message, msgCh <-chan string, quitCh chan
 	var totalBytes int
 
 	//Default timeout of 5 Mins (Assuming network speed is enough to wrap it up in 5 mins)
-	defaultTimeoutSeconds := 600
+	defaultTimeoutSeconds := 1200
 
 	//TimeoutChannel
 	timeout := time.After(time.Second * time.Duration(defaultTimeoutSeconds))
