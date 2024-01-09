@@ -104,7 +104,10 @@ func ReadUrls(pathToFile *string, targetUrls *commondata.TargetUrls) (int64, err
 
 				/*Timeouts have len less than 4
 				 */
-				if len(msgSplit) < 4 {
+				 fmt.Println(msgSplit[0], msgSplit[1])
+				if len(msgSplit) < 3 {				 
+					cCy.Printf("INFO: [%s] [%s]", msgSplit[0], msgSplit[1])
+				}else if len(msgSplit) < 4 {
 					cCy.Printf("INFO: [%s] [%s] [%s]", msgSplit[1], fileName, msgSplit[2])
 				} else {
 					cCy.Printf("INFO: [%s] [%s] [%s]", msgSplit[2], fileName, msgSplit[3])
