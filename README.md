@@ -9,16 +9,19 @@
 ### Clone the repo and build binary
 ```
 $ git clone https://github.com/3l-d1abl0/glogger.git
-$ cd glogger/
+$ cd glogger/cmd/glogger/
+```
+
+##### Make binary
+```
 $ go build -o glogger
 $ ./glogger -h
 $ ./glogger -f "/path/to/links-file" -o "/path/to/output/folder/"
+
 ```
 
-#### Alternative
+##### Alternative - run main.go
 ```
-$ git clone https://github.com/3l-d1abl0/glogger.git
-$ cd glogger/
 $ go run main.go -h
 $ go run main.go -f "/path/to/links-file" -o "/path/to/output/folder/"
 ```

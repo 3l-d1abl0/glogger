@@ -1,24 +1,17 @@
-package readUrls
+package utils
 
 import (
 	"bufio"
 	"fmt"
+	"glogger/pkg/commondata"
 	"net/http"
 	"net/url"
 	"os"
 	"path"
 	"strings"
 
-	"glogger/pkg/commondata"
-
 	"github.com/fatih/color"
 )
-
-func checkNilErr(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
 
 // fetches the size of a url
 func getSize(url string) (int64, error) {
@@ -31,7 +24,6 @@ func getSize(url string) (int64, error) {
 
 	// Check if the response status code is in the 2xx range
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		//Head "https://static.git.ir/sub/cdn15.git.ir/02/Udemy%20Rust%20Programming%20The%20Complete%20Guide-git.ir/088-Channels-git.ir.fa.srt": dial tcp: lookup static.git.ir: no such host
 
 		urlSplit := strings.Split(url, "/")
 		return 0, fmt.Errorf("GET %s: dail tcp: %s: %d", url, urlSplit[2], response.StatusCode)
@@ -104,10 +96,10 @@ func ReadUrls(pathToFile *string, targetUrls *commondata.TargetUrls) (int64, err
 
 				/*Timeouts have len less than 4
 				 */
-				 fmt.Println(msgSplit[0], msgSplit[1])
-				if len(msgSplit) < 3 {				 
+				fmt.Println(msgSplit[0], msgSplit[1])
+				if len(msgSplit) < 3 {
 					cCy.Printf("INFO: [%s] [%s]", msgSplit[0], msgSplit[1])
-				}else if len(msgSplit) < 4 {
+				} else if len(msgSplit) < 4 {
 					cCy.Printf("INFO: [%s] [%s] [%s]", msgSplit[1], fileName, msgSplit[2])
 				} else {
 					cCy.Printf("INFO: [%s] [%s] [%s]", msgSplit[2], fileName, msgSplit[3])
