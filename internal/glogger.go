@@ -1,4 +1,4 @@
-package glogger
+package internal
 
 import (
 	"fmt"
@@ -15,9 +15,8 @@ import (
 	"github.com/fatih/color"
 )
 
-
-type terminalMessage struct{
-	id int
+type terminalMessage struct {
+	id      int
 	message string
 }
 
@@ -27,18 +26,17 @@ var mu sync.Mutex
 var currentSize int64
 var previousMessageType int
 
+func flushToTerminal(msgs *[]terminalMessage) {
 
-func flushToTerminal(msgs *[]terminalMessage){
-
-		//Color Convention
-		//1, boldGreen//for done channel
-		//2, boldRed //for msg channel (unsuccessful msgs)
-		//3, boldMag //for timeouts
-		//4, cyan - normal msgs
+	//Color Convention
+	//1, boldGreen//for done channel
+	//2, boldRed //for msg channel (unsuccessful msgs)
+	//3, boldMag //for timeouts
+	//4, cyan - normal msgs
 
 	for _, str := range *msgs {
 
-		switch str.id{
+		switch str.id {
 
 		case 1:
 			boldGreen := color.New(color.FgGreen, color.Bold)
@@ -58,7 +56,7 @@ func flushToTerminal(msgs *[]terminalMessage){
 			normalCyan.Printf(str.message)
 
 		}
-		
+
 	}
 
 	//Clear the buffer
@@ -73,8 +71,6 @@ func fetchUrl(idx int, urlObj commondata.UrlObject, speedCh chan<- int, doneCh c
 		msgCh <- fmt.Sprintf("Unable to make GET request: %s", urlObj.Url)
 		return
 	}
-
-	//fileName := path.Base(r.URL.Path)
 
 	client := &http.Client{}
 	res, err := client.Do(r)
@@ -92,9 +88,6 @@ func fetchUrl(idx int, urlObj commondata.UrlObject, speedCh chan<- int, doneCh c
 	defer res.Body.Close()
 
 	if res.StatusCode == http.StatusOK {
-
-		//contentLength := res.Header.Get("Content-Length")
-		//	fmt.Println("Content Length:", contentLength, urlObj.Filename)
 
 		file, err := os.Create(filepath.Join(outputFolder, urlObj.Filename))
 		if err != nil {
@@ -143,11 +136,12 @@ func fetchUrl(idx int, urlObj commondata.UrlObject, speedCh chan<- int, doneCh c
 
 }
 
-func Glogger(doneCh chan commondata.Message, msgCh chan string, quitCh chan<- bool, validUrls []commondata.UrlObject, outputFolder string, bar *progressbar.ProgressBar) {
+func glogger(doneCh chan commondata.Message, msgCh chan string, quitCh chan<- bool, validUrls []commondata.UrlObject, outputFolder string, bar *progressbar.ProgressBar) {
 
+	//For recieving per second Info
 	speedCh := make(chan int, 50)
-	color.Cyan("Fetching valid urls ...")
 
+	color.Cyan("Fetching valid urls ...")
 	//Setting up the recievers
 	go receiver(doneCh, msgCh, quitCh, speedCh, bar, validUrls)
 
@@ -188,8 +182,6 @@ func receiver(doneCh <-chan commondata.Message, msgCh <-chan string, quitCh chan
 
 	var tMessages []terminalMessage
 
-
-
 	//That wild infi Loop
 	for {
 
@@ -201,7 +193,7 @@ func receiver(doneCh <-chan commondata.Message, msgCh <-chan string, quitCh chan
 
 		//check the doneChannel, if any goroutine have finished
 		case msg := <-doneCh:
-			
+
 			//Fetch the filename and Size
 			validUrls[msg.Idx].Size = msg.Size
 			fileSize := validUrls[msg.Idx].Size
@@ -210,11 +202,10 @@ func receiver(doneCh <-chan commondata.Message, msgCh <-chan string, quitCh chan
 			//Prepare Success Message
 			var printMsg string = fmt.Sprintf("Downloaded: [%s] [size %.2f MB]", fileName, float32(fileSize)/(1024*1024))
 			tMessages = append(tMessages, terminalMessage{
-				id: 1,
+				id:      1,
 				message: fmt.Sprintf("\r%-120s\n", printMsg),
 			})
-			
-			
+
 			reqCount = reqCount + 1
 			//currentSize += fileSize
 
@@ -222,17 +213,16 @@ func receiver(doneCh <-chan commondata.Message, msgCh <-chan string, quitCh chan
 		case msg := <-msgCh:
 
 			tMessages = append(tMessages, terminalMessage{
-				id: 2,
+				id:      2,
 				message: fmt.Sprintf("\rERROR: %-120s\n", msg),
 			})
 
 			reqCount = reqCount + 1
 
-
 		case <-timeout:
 
 			tMessages = append(tMessages, terminalMessage{
-				id: 3,
+				id:      3,
 				message: fmt.Sprintf("\rTimeout of %d seconds reached! Quitting\n", defaultTimeoutSeconds),
 			})
 
@@ -240,7 +230,7 @@ func receiver(doneCh <-chan commondata.Message, msgCh <-chan string, quitCh chan
 			quitCh <- true
 			return
 
-		//default:
+		//1sec
 		case <-timer.C:
 
 			currentCounter := reqCount
@@ -262,13 +252,39 @@ func receiver(doneCh <-chan commondata.Message, msgCh <-chan string, quitCh chan
 				//Signalling the quit Channel
 				quitCh <- true
 
-				boldGreen := color.New(color.FgGreen, color.BgBlack,color.Bold)
+				boldGreen := color.New(color.FgGreen, color.BgBlack, color.Bold)
 				boldGreen.Printf("\nProcessed : %d url(s)", totalReqs)
 				return
 			}
 
-			
 		} //select
 
 	} //for
+}
+
+func Run(totalSize *int64, targetUrls *commondata.TargetUrls, outputFolder *string) {
+
+	//Setup channels
+	//Channel to transfer send messages
+	doneCh := make(chan commondata.Message)
+	//Channel to transfer any other messages
+	msgCh := make(chan string)
+	//Bidirection Channel, used as send Quit message
+	quitCh := make(chan bool)
+
+	// Set up Progressbar Downloader Settings
+	var N int = len(targetUrls.ValidUrls)
+	var barSize int64 = 50
+	var barSymbol string = "█"
+	bar := progressbar.GetNewBar(int64(N), 0, barSymbol, barSize, 0, *totalSize)
+
+	//Start Download Process
+	glogger(doneCh, msgCh, quitCh, targetUrls.ValidUrls, *outputFolder, &bar)
+
+	//Wait for the Quit Signal
+	if true == <-quitCh {
+		boldMag := color.New(color.FgMagenta).Add(color.Bold)
+		boldMag.Printf("\nExiting ! ")
+		return
+	}
 }
