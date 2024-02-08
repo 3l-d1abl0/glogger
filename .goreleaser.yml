@@ -1,4 +1,7 @@
 builds:
+  - main: ./cmd/glogger/main.go
+    ldflags: -s -w
+
   - binary: glogger
     goos:
       - darwin
