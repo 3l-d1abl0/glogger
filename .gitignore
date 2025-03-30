@@ -3,3 +3,5 @@ output
 urls
 
 etc/
+
+vendor/*
